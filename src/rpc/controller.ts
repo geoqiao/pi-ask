@@ -18,10 +18,7 @@ import type {
 	AskStateAnswer,
 } from "../types.ts";
 
-type RpcUi = Pick<
-	ExtensionContext["ui"],
-	"confirm" | "editor" | "input" | "select"
->;
+type RpcUi = Pick<ExtensionContext["ui"], "editor" | "input" | "select">;
 
 interface RpcStepResult {
 	cancelled: boolean;
@@ -105,21 +102,13 @@ async function askSingleQuestion(
 	question: AskQuestion,
 	questionIndex: number
 ): Promise<RpcStepResult> {
-	const binaryOptions = getYesNoOptions(question);
-	const actions: SelectAction[] = binaryOptions
-		? [
-				{
-					kind: "option",
-					label: formatYesNoAction(binaryOptions),
-				},
-			]
-		: question.options
-				.filter((option) => !option.freeform)
-				.map((option, optionIndex) => ({
-					kind: "option" as const,
-					label: formatOption(option, optionIndex),
-					optionIndex,
-				}));
+	const actions: SelectAction[] = question.options
+		.filter((option) => !option.freeform)
+		.map((option, optionIndex) => ({
+			kind: "option" as const,
+			label: formatOption(option, optionIndex),
+			optionIndex,
+		}));
 	appendCommonActions(actions, question);
 
 	const action = await selectAction(
@@ -129,7 +118,6 @@ async function askSingleQuestion(
 	);
 	return applySingleAction({
 		action,
-		binaryOptions,
 		question,
 		questionIndex,
 		state,
@@ -139,13 +127,12 @@ async function askSingleQuestion(
 
 async function applySingleAction(args: {
 	action: SelectAction | undefined;
-	binaryOptions: YesNoOptions | undefined;
 	question: AskQuestion;
 	questionIndex: number;
 	state: AskState;
 	ui: RpcUi;
 }): Promise<RpcStepResult> {
-	const { action, binaryOptions, question, questionIndex, state, ui } = args;
+	const { action, question, questionIndex, state, ui } = args;
 	if (!action || action.kind === "cancel") {
 		return { cancelled: true, state };
 	}
@@ -153,7 +140,7 @@ async function applySingleAction(args: {
 		return { cancelled: false, state: clearAnswer(state, question.id) };
 	}
 	if (action.kind === "custom-input" || action.kind === "custom-editor") {
-		return askForCustomAnswer(
+		return await askForCustomAnswer(
 			ui,
 			state,
 			question,
@@ -165,35 +152,7 @@ async function applySingleAction(args: {
 		return { cancelled: true, state };
 	}
 
-	const optionIndex = await resolveSingleOptionIndex({
-		action,
-		binaryOptions,
-		question,
-		questionIndex,
-		state,
-		ui,
-	});
-	return selectSingleOption(state, question, optionIndex);
-}
-
-async function resolveSingleOptionIndex(args: {
-	action: SelectAction;
-	binaryOptions: YesNoOptions | undefined;
-	question: AskQuestion;
-	questionIndex: number;
-	state: AskState;
-	ui: RpcUi;
-}): Promise<number | undefined> {
-	if (!args.binaryOptions) {
-		return args.action.optionIndex;
-	}
-	const confirmed = await args.ui.confirm(
-		formatTitle(args.state, args.question, args.questionIndex, "Yes / No"),
-		formatYesNoMessage(args.binaryOptions)
-	);
-	return confirmed
-		? args.binaryOptions.yes.optionIndex
-		: args.binaryOptions.no.optionIndex;
+	return selectSingleOption(state, question, action.optionIndex);
 }
 
 function selectSingleOption(
@@ -619,65 +578,6 @@ function formatSkipLabel(question: AskQuestion): string {
 	return question.required
 		? "Skip this question (required is advisory)"
 		: "Skip this question (optional)";
-}
-
-interface YesNoOptions {
-	no: { option: AskQuestion["options"][number]; optionIndex: number };
-	yes: { option: AskQuestion["options"][number]; optionIndex: number };
-}
-
-function getYesNoOptions(question: AskQuestion): YesNoOptions | undefined {
-	if (question.type !== "single" || question.options.length !== 2) {
-		return;
-	}
-	const yesIndex = question.options.findIndex((option) =>
-		matchesBinaryToken(option, "yes")
-	);
-	const noIndex = question.options.findIndex((option) =>
-		matchesBinaryToken(option, "no")
-	);
-	if (yesIndex < 0 || noIndex < 0 || yesIndex === noIndex) {
-		return;
-	}
-	const yes = question.options[yesIndex];
-	const no = question.options[noIndex];
-	if (!(yes && no)) {
-		return;
-	}
-	return {
-		yes: { option: yes, optionIndex: yesIndex },
-		no: { option: no, optionIndex: noIndex },
-	};
-}
-
-function matchesBinaryToken(
-	option: AskQuestion["options"][number],
-	token: "yes" | "no"
-): boolean {
-	return [option.label, option.value].some(
-		(value) => compactText(value).toLowerCase() === token
-	);
-}
-
-function formatYesNoAction(options: YesNoOptions): string {
-	return `Answer Yes / No… — Yes: ${formatOptionDetail(options.yes.option)}; No: ${formatOptionDetail(options.no.option)}`;
-}
-
-function formatYesNoMessage(options: YesNoOptions): string {
-	return [
-		`Yes: ${formatOptionDetail(options.yes.option)}`,
-		`No: ${formatOptionDetail(options.no.option)}`,
-	].join("\n");
-}
-
-function formatOptionDetail(option: AskQuestion["options"][number]): string {
-	const description = option.description
-		? ` — ${compactText(option.description)}`
-		: "";
-	const preview = option.preview
-		? ` — Preview: ${compactText(option.preview)}`
-		: "";
-	return `${compactText(option.label)}${description}${preview}`;
 }
 
 function formatInputPlaceholder(currentText: string | undefined): string {

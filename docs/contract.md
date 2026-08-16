@@ -259,7 +259,7 @@ Dirty dismiss:
 
 The rich ask flow uses `ctx.ui.custom()` only in TUI mode. RPC mode never calls `custom()`; when portable extension dialogs are available it asks questions sequentially and serializes answers through the same state/result helpers:
 
-- single choices use `select`; recognized Yes/No option pairs add a `confirm` dialog
+- single choices, including Yes/No pairs, use `select` so dismissal remains distinct from choosing `No`
 - short and multiline custom answers use `input` and `editor`
 - every question exposes Skip explicitly; required remains advisory and its Skip label says so
 - after each question, a portable action dialog can add/edit a short or multiline question note, or an editor note for a selected option

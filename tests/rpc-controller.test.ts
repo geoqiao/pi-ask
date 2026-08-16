@@ -15,11 +15,9 @@ type SelectResponse =
 	| ((call: SelectCall) => string | undefined);
 
 class RpcDialogHarness {
-	readonly confirmCalls: Array<{ message: string; title: string }> = [];
 	readonly editorCalls: Array<{ prefill?: string; title: string }> = [];
 	readonly inputCalls: Array<{ placeholder?: string; title: string }> = [];
 	readonly selectCalls: SelectCall[] = [];
-	private readonly confirmResponses: boolean[];
 	private readonly editorResponses: Array<string | undefined>;
 	private readonly inputResponses: Array<string | undefined>;
 	private readonly selectResponses: SelectResponse[];
@@ -27,23 +25,15 @@ class RpcDialogHarness {
 	constructor(
 		selectResponses: SelectResponse[],
 		inputResponses: Array<string | undefined> = [],
-		editorResponses: Array<string | undefined> = [],
-		confirmResponses: boolean[] = []
+		editorResponses: Array<string | undefined> = []
 	) {
 		this.selectResponses = selectResponses;
 		this.inputResponses = inputResponses;
 		this.editorResponses = editorResponses;
-		this.confirmResponses = confirmResponses;
 	}
 
 	readonly ctx = {
 		ui: {
-			confirm: (title: string, message: string) => {
-				this.confirmCalls.push({ title, message });
-				return Promise.resolve(
-					this.shiftResponse(this.confirmResponses, "confirm")
-				);
-			},
 			editor: (title: string, prefill?: string) => {
 				this.editorCalls.push({ title, prefill });
 				return Promise.resolve(
@@ -71,7 +61,6 @@ class RpcDialogHarness {
 		assert.equal(this.selectResponses.length, 0, "unused select responses");
 		assert.equal(this.inputResponses.length, 0, "unused input responses");
 		assert.equal(this.editorResponses.length, 0, "unused editor responses");
-		assert.equal(this.confirmResponses.length, 0, "unused confirm responses");
 	}
 
 	private shiftResponse<T>(responses: T[], method: string): T {
@@ -317,13 +306,8 @@ test("RPC multi-select loops with selected markers and explicit finish", async (
 	harness.assertDrained();
 });
 
-test("RPC yes/no uses confirm and preserves original option metadata", async () => {
-	const harness = new RpcDialogHarness(
-		[pickOption("Answer Yes / No"), "Continue"],
-		[],
-		[],
-		[false]
-	);
+test("RPC yes/no uses cancellable select options and preserves metadata", async () => {
+	const harness = new RpcDialogHarness([pickOption("2. No"), "Continue"]);
 	const state = createInitialState(
 		params([
 			{
@@ -342,10 +326,30 @@ test("RPC yes/no uses confirm and preserves original option metadata", async () 
 	assert.deepEqual(result.answers.proceed?.values, ["no"]);
 	assert.deepEqual(result.answers.proceed?.labels, ["No"]);
 	assert.deepEqual(result.answers.proceed?.indices, [2]);
-	assert.equal(harness.confirmCalls.length, 1);
-	assert(
-		(harness.confirmCalls[0]?.message ?? "").includes("Yes: Yes — Continue now")
+	assert(harness.selectCalls[0]?.options.includes("1. Yes — Continue now"));
+	assert(harness.selectCalls[0]?.options.includes("2. No — Stop here"));
+	harness.assertDrained();
+});
+
+test("RPC yes/no can be cancelled without being recorded as No", async () => {
+	const harness = new RpcDialogHarness([pickOption("Cancel ask")]);
+	const state = createInitialState(
+		params([
+			{
+				id: "proceed",
+				prompt: "Proceed?",
+				options: [
+					{ value: "yes", label: "Yes" },
+					{ value: "no", label: "No" },
+				],
+			},
+		])
 	);
+
+	const result = await runRpcAskFlow(harness.ctx, state);
+
+	assert.equal(result.cancelled, true);
+	assert.deepEqual(result.answers, {});
 	harness.assertDrained();
 });
 

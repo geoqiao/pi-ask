@@ -204,7 +204,7 @@ Agents can auto-discover and call `ask_user` when they need clarification instea
 
 When Pi runs in RPC mode with portable extension UI support, `ask_user` keeps the same normalized result contract but uses sequential dialogs:
 
-- single choices use `select`; recognized Yes/No pairs use `confirm`
+- single choices, including Yes/No pairs, use cancellable `select` dialogs
 - short custom answers use `input`; multiline answers use `editor`
 - each question offers explicit Skip and Cancel actions, followed by optional question/selected-option note actions
 - multi-select repeats `select` with `[ ]` / `[x]` markers until `Finish selection` is chosen
