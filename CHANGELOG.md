@@ -1,3 +1,15 @@
+# [1.2.0](https://github.com/geoqiao/pi-ask/compare/v1.1.0...v1.2.0) (2026-08-16)
+
+
+### Bug Fixes
+
+* preserve RPC yes-no cancellation semantics ([9e5265d](https://github.com/geoqiao/pi-ask/commit/9e5265dec7ef6a990a3ac8a8aca190429a942fb7))
+
+
+### Features
+
+* add portable RPC ask fallback ([6def4ed](https://github.com/geoqiao/pi-ask/commit/6def4ed1c803980b5da89ccfc2de1d56f54bef99))
+
 # [1.1.0](https://github.com/eko24ive/pi-ask/compare/v1.0.2...v1.1.0) (2026-06-22)
 
 
