@@ -286,6 +286,8 @@ pi-ask exposes a local `pi.events` contract for trusted Pi extensions. It does n
 
 Channels:
 
+The established event namespace is retained for compatibility with existing trusted integrations.
+
 - `@eko24ive/pi-ask:started`
 - `@eko24ive/pi-ask:completed`
 - `@eko24ive/pi-ask:submit`

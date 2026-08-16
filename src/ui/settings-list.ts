@@ -162,7 +162,7 @@ export class AskSettingsList {
 		const lines = [
 			this.topBorder(innerWidth),
 			this.line(
-				center(this.theme.fg("accent", "@eko24ive/pi-ask"), innerWidth),
+				center(this.theme.fg("accent", "@geoqiao/pi-ask"), innerWidth),
 				innerWidth
 			),
 			this.line("", innerWidth),

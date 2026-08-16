@@ -1,6 +1,6 @@
 # pi-ask configuration
 
-This file is the source of truth for configuring `@eko24ive/pi-ask`.
+This file is the source of truth for configuring `@geoqiao/pi-ask`.
 
 When changing pi-ask settings:
 
@@ -15,6 +15,8 @@ pi-ask treats this file as user-owned config. It does not rewrite or back up the
 Default path:
 
 `~/.pi/agent/extensions/eko24ive-pi-ask.json`
+
+The established filename is intentionally retained for compatibility with upstream installations.
 
 If the file does not exist yet, pi-ask attempts to create it with the current default settings the first time the ask flow is used. If the config location is read-only or managed outside pi-ask, pi-ask uses built-in defaults for the session and leaves disk unchanged.
 

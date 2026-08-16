@@ -1,16 +1,16 @@
 {
-  "name": "@eko24ive/pi-ask",
+  "name": "@geoqiao/pi-ask",
   "version": "1.1.0",
   "description": "Pi package that adds an interactive ask_user clarification tool.",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eko24ive/pi-ask.git"
+    "url": "git+https://github.com/geoqiao/pi-ask.git"
   },
-  "homepage": "https://github.com/eko24ive/pi-ask#readme",
+  "homepage": "https://github.com/geoqiao/pi-ask#readme",
   "bugs": {
-    "url": "https://github.com/eko24ive/pi-ask/issues"
+    "url": "https://github.com/geoqiao/pi-ask/issues"
   },
   "keywords": [
     "pi-package",
@@ -25,6 +25,7 @@
     "skills/",
     "docs/configuration.md",
     "docs/contract.md",
+    "docs/architecture.md",
     "docs/remote-events.md",
     "README.md",
     "LICENSE",
@@ -56,7 +57,7 @@
     "provenance": true
   },
   "release": {
-    "repositoryUrl": "https://github.com/eko24ive/pi-ask.git",
+    "repositoryUrl": "https://github.com/geoqiao/pi-ask.git",
     "branches": [
       "main"
     ],
