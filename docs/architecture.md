@@ -14,7 +14,8 @@ The codebase is split so the implementation reads through file boundaries and na
 ### Tool surface
 
 - `src/index.ts` — extension entrypoint
-- `src/ask-tool.ts` — tool registration, non-interactive fallback, transcript rendering, ask payload capture
+- `src/ask-tool.ts` — tool registration, mode routing, non-interactive fallback, transcript rendering, ask payload capture
+- `src/rpc/controller.ts` — sequential portable-dialog RPC flow and state assembly
 - `src/answer-commands.ts` — `/answer`, `/answer:again`, and `/ask:replay` command wiring
 - `src/answer-extraction.ts` — configured extraction model selection and raw-JSON extraction retries
 - `src/ask-payload-store.ts` — branch-aware persisted ask payload lookup
@@ -66,6 +67,8 @@ The codebase is split so the implementation reads through file boundaries and na
 ## Invariants worth preserving
 
 - submit is never blocked by unanswered questions
+- TUI state and controller behavior stay isolated from the RPC portable-dialog controller
+- RPC answers are written through shared answer helpers and serialized through the shared result builder
 - single-select answers serialize as arrays
 - when `behaviour.presentSingleAsMulti` is enabled, future single-select questions are handled with multi-select state semantics while result metadata preserves the requested `type` and adds `presentedType`
 - active-flow question type changes are per-question runtime overrides handled in state/controller logic; they do not mutate the stored source payload or global config

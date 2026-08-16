@@ -3,7 +3,7 @@
 # @eko24ive/pi-ask
 
 [![npm downloads](https://badgen.net/npm/dm/@eko24ive/pi-ask)](https://www.npmjs.com/package/@eko24ive/pi-ask)
-[![last commit](https://badgen.net/github/last-commit/eko24ive/pi-ask?v=bbb7017)](https://github.com/eko24ive/pi-ask/commits/main)
+[![last commit](https://badgen.net/github/last-commit/eko24ive/pi-ask?v=2bba854)](https://github.com/eko24ive/pi-ask/commits/main)
 [![stars](https://badgen.net/github/stars/eko24ive/pi-ask)](https://github.com/eko24ive/pi-ask/stargazers)
 
 > [!IMPORTANT]
@@ -11,7 +11,7 @@
 
 `@eko24ive/pi-ask` is an ask tool that cares about your answers.
 
-It lets an agent pause, ask structured questions in a terminal UI, and continue with normalized answers instead of guessing.
+It lets an agent pause, ask structured questions in a terminal UI or portable Pi RPC dialogs, and continue with normalized answers instead of guessing.
 
 ![pi-ask demo](docs/media/pi-ask-demo.gif)
 
@@ -45,7 +45,7 @@ pi -e npm:@eko24ive/pi-ask
 
 ## Features
 
-Once installed, this package gives the agent a native way to ask for clarification instead of guessing.
+Once installed, this package gives the agent a native way to ask for clarification instead of guessing. The rich interface is used in TUI mode.
 
 - 🧭 Familiar ask-style interface: tabbed questions, single/multi select, and preview mode
 - ✍️ Inline free-form `Type your own` answers
@@ -53,6 +53,7 @@ Once installed, this package gives the agent a native way to ask for clarificati
 - 📝 Question-level and option-level notes
 - 👀 Review tab with `Submit`, `Elaborate`, and `Cancel`
 - 💬 Elaboration flow to capture note-based clarification before final submission
+- 🔌 Pi RPC fallback using portable sequential dialogs with normalized results
 - ⌨️ Context-aware customizable keymaps with aliases for main flow, editors, and settings
 - ⚙️ Ask settings with persisted behaviour, notifications, keymaps, and `/answer` extraction config
 - 🔔 Optional external notifications when an ask flow is waiting for input
@@ -198,6 +199,19 @@ Accepted notation follows pi-tui key ids. Common aliases are normalized, for exa
 After installation, the extension registers the `ask_user` tool plus `/ask-settings`, `/answer`, `/answer:again`, and `/ask:replay` commands.
 
 Agents can auto-discover and call `ask_user` when they need clarification instead of guessing. In interactive sessions, it opens a terminal UI flow for structured answers, supports native pi-style `@` file references while typing answers or notes, and returns normalized answers back to the agent. Ask settings are available both from `?` in the ask flow and from the `/ask-settings` command. Behaviour and notification settings are binary `on`/`off` toggles that save immediately when the config file is writable; save failures revert the toggle and show a manual-edit message. The settings overlay includes a guarded double-press reset-to-defaults action; keymaps, notification channels, and extraction settings are changed by editing the shown config file path.
+
+### Pi RPC fallback
+
+When Pi runs in RPC mode with portable extension UI support, `ask_user` keeps the same normalized result contract but uses sequential dialogs:
+
+- single choices use `select`; recognized Yes/No pairs use `confirm`
+- short custom answers use `input`; multiline answers use `editor`
+- each question offers explicit Skip and Cancel actions, followed by optional question/selected-option note actions
+- multi-select repeats `select` with `[ ]` / `[x]` markers until `Finish selection` is chosen
+- descriptions and preview content are flattened into readable option strings
+- multiple questions include `[current/total]` progress in each dialog title
+
+RPC intentionally does not reproduce the tabbed same-screen form, native checkbox cards, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. The fallback completes in `submit` mode after the sequential questions. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
 
 ### Answer and replay commands
 

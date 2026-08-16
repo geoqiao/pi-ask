@@ -15,6 +15,7 @@ import {
 } from "./ask-tool-helpers.ts";
 import { getAskConfigStore } from "./config/store.ts";
 import type { RemoteAskRuntime } from "./remote-ask.ts";
+import { runRpcAskFlow } from "./rpc/controller.ts";
 import { AskParamsSchema } from "./schema.ts";
 import type { AskParams } from "./types.ts";
 import { runAskFlow } from "./ui/controller.ts";
@@ -68,6 +69,9 @@ async function executeAskTool(
 		sourceEntryId: toolCallId,
 	});
 	if (ctx.mode !== "tui") {
+		if (ctx.mode === "rpc" && ctx.hasUI) {
+			return successfulResponse(await runRpcAskFlow(ctx, validation.state));
+		}
 		return nonInteractiveResponse(validation.state);
 	}
 	ctx.ui.setWorkingVisible(false);

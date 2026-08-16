@@ -13,7 +13,7 @@ import type {
 } from "./types.ts";
 
 export const ASK_TOOL_DESCRIPTION =
-	"Interactive clarification tool for cases where the next step depends on user preferences, missing requirements, or choosing between multiple valid directions. Ask a short structured interview, collect normalized answers, and continue using those answers explicitly instead of guessing. Supports single-select, multi-select, and preview-pane questions. Always include a machine-readable `value` for every option. Use `preview` only when every option includes `preview` text; descriptions alone are not enough.";
+	"Interactive clarification tool for cases where the next step depends on user preferences, missing requirements, or choosing between multiple valid directions. Ask a short structured interview, collect normalized answers, and continue using those answers explicitly instead of guessing. TUI mode supports single-select, multi-select, and preview-pane questions; RPC mode presents questions sequentially, implements multi-select with repeated portable dialogs, and flattens preview details into option text. Always include a machine-readable `value` for every option. Use `preview` only when every option includes `preview` text; descriptions alone are not enough.";
 
 export const ASK_TOOL_PROMPT_GUIDELINES = [
 	"Use `ask_user` before making preference-sensitive decisions about scope, tone, UX, naming, architecture, docs, or implementation direction.",
@@ -25,6 +25,7 @@ export const ASK_TOOL_PROMPT_GUIDELINES = [
 	"After an `ask_user` elaboration or follow-up note, prefer another structured `ask_user` follow-up if a choice is still needed instead of switching to plain-text multiple choice in chat.",
 	"When prior `ask_user` answers narrow the branch, bundle the next 2-3 related unresolved decisions into one follow-up `ask_user` call when possible.",
 	"Use one-at-a-time `ask_user` follow-up calls only when the next question materially depends on the previous answer.",
+	"Do not promise same-screen forms, native checkbox cards, or a custom preview pane when `ask_user` is rendered through RPC; the portable fallback asks questions sequentially and uses a repeated-select loop for multi-select.",
 ] as const;
 
 interface ValidateParamsOptions {

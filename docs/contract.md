@@ -193,7 +193,7 @@ This document defines the stable external behavior. It does not explain internal
 - elaborate `content` text and transcript rendering describe each note directly using the full question prompt and option label, and include the current committed answer text when available, instead of a generic elaboration banner
 - when the user selects `Elaborate` without adding notes, elaborate `content` text and transcript rendering still include the committed answer text so the agent can elaborate on that answer directly
 
-## Supported UX
+## Supported TUI UX
 
 - tabbed multi-question flow
 - single-select, multi-select, and preview questions
@@ -255,9 +255,22 @@ Dirty dismiss:
 - when `Confirm dismiss when dirty` is enabled, cancelling or dismissing a dirty ask flow requires the same action a second time
 - the dirty-dismiss warning stays visible until the user changes tabs in the ask flow
 
-## Non-TUI and non-interactive modes
+## Runtime modes
 
-The rich ask flow uses `ctx.ui.custom()` and opens only in TUI mode. In print, JSON, RPC, or any other non-TUI mode, the tool returns a `Needs user input: ask_user requires interactive TUI mode.` message in `content` and a cancelled result in `details` instead of opening custom UI.
+The rich ask flow uses `ctx.ui.custom()` only in TUI mode. RPC mode never calls `custom()`; when portable extension dialogs are available it asks questions sequentially and serializes answers through the same state/result helpers:
+
+- single choices use `select`; recognized Yes/No option pairs add a `confirm` dialog
+- short and multiline custom answers use `input` and `editor`
+- every question exposes Skip explicitly; required remains advisory and its Skip label says so
+- after each question, a portable action dialog can add/edit a short or multiline question note, or an editor note for a selected option
+- multi-select repeatedly calls `select`, showing `[ ]` / `[x]` option markers and a `Finish selection` action; selections are collected locally in original option order
+- descriptions and preview content are flattened into option strings instead of using a custom preview pane
+- multiple questions are sequential and every title includes `[current/total]` progress
+- dismissing a value dialog or choosing Cancel returns `cancelled: true`
+
+RPC does not provide the tabbed same-screen form, native checkbox cards, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. RPC completion uses `mode: "submit"`. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
+
+In print, JSON, other non-TUI modes, or RPC without portable UI availability, the tool returns a `Needs user input: ask_user requires interactive TUI mode.` message in `content` and a cancelled result in `details` instead of opening UI.
 
 Validation is handled inside the tool so malformed calls produce the same structured error shape as other invalid payloads instead of relying on pre-execution schema failures.
 
@@ -265,11 +278,11 @@ The ask flow subscribes to runtime settings updates while open. In practice, thi
 
 ## Notifications
 
-When enabled, pi-ask emits one best-effort external notification per ask session after the ask UI opens and waits for input. The default title is `pi ask`; the message is `Question waiting: <label or prompt>`. Channels run in configured order and failures never fail or cancel the ask flow.
+When enabled, pi-ask emits one best-effort external notification per TUI ask session after the ask UI opens and waits for input. RPC clients surface the portable dialogs directly. The default title is `pi ask`; the message is `Question waiting: <label or prompt>`. Channels run in configured order and failures never fail or cancel the ask flow.
 
 ## Remote inter-extension events
 
-pi-ask exposes a local `pi.events` contract for trusted Pi extensions. It does not expose a network API and does not automate terminal keystrokes. RPC or headless integrations should use a trusted in-process bridge extension that consumes these events rather than expecting the TUI-only custom surface to open.
+pi-ask exposes a local `pi.events` contract for trusted Pi extensions. It does not expose a network API and does not automate terminal keystrokes. Integrations that need programmatic submissions instead of the normal TUI or RPC portable-dialog flow can use a trusted in-process bridge extension that consumes these events.
 
 Channels:
 
@@ -278,7 +291,7 @@ Channels:
 - `@eko24ive/pi-ask:submit`
 - `@eko24ive/pi-ask:submit-result`
 
-Remote submissions must be explicit `{ kind: "answer" }` or `{ kind: "cancel" }` responses. Remote answers use question ids and normalized option values from the started event. pi-ask validates ids and values, recomputes labels/indices, and does not infer approval semantics from labels.
+Remote submissions must be explicit `{ kind: "answer" }` or `{ kind: "cancel" }` responses. Remote answers use question ids and normalized option values from the started event. pi-ask validates ids and values, recomputes labels/indices, and does not infer approval semantics from labels. The normal `ask_user` tool uses the portable-dialog fallback in RPC; the event bridge remains available for other trusted in-process integrations.
 
 See [`remote-events.md`](remote-events.md) for payload shapes, examples, and a local smoke test.
 
@@ -292,7 +305,7 @@ See [`remote-events.md`](remote-events.md) for payload shapes, examples, and a l
 - submitted or elaborated command-flow results are sent back with user-message semantics
 - replay commands scan only `ctx.sessionManager.getBranch()`, ignore sibling/future branch payloads, and revalidate stored payloads before opening the UI
 
-The fallback message includes normalized pending questions and options so the caller can re-ask them manually. `details.questions` still contains normalized question metadata, while `details.answers` stays empty until a user responds.
+The non-interactive fallback message includes normalized pending questions and options so the caller can re-ask them manually. `details.questions` still contains normalized question metadata, while `details.answers` stays empty until a user responds.
 
 ## Skill alignment (advisory)
 

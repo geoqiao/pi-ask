@@ -113,14 +113,24 @@ test("ask tool returns pending questions in non-interactive mode", async () => {
 	assert.match(result.content[0].text, CUSTOM_OPTION_RE);
 });
 
-test("ask tool does not open custom UI outside TUI mode", async () => {
+test("ask tool uses portable dialogs instead of custom UI in RPC mode", async () => {
 	const { tool } = registerMockTool();
 	let customOpened = false;
+	let selectCalls = 0;
 
 	const result = await tool.execute("call-1", sampleParams(), undefined, noop, {
 		[HAS_UI]: true,
 		mode: "rpc",
 		ui: {
+			select(_title: string, options: string[]) {
+				selectCalls += 1;
+				if (selectCalls === 1) {
+					return Promise.resolve(
+						options.find((option) => option.includes("1. Speed"))
+					);
+				}
+				return Promise.resolve("Continue");
+			},
 			custom() {
 				customOpened = true;
 			},
@@ -128,8 +138,16 @@ test("ask tool does not open custom UI outside TUI mode", async () => {
 	});
 
 	assert.equal(customOpened, false);
-	assert.equal(result.details.cancelled, true);
-	assert.match(result.content[0].text, NON_INTERACTIVE_MESSAGE_RE);
+	assert.equal(selectCalls, 2);
+	assert.equal(result.details.cancelled, false);
+	assert.deepEqual(result.details.answers.goal, {
+		values: ["speed"],
+		labels: ["Speed"],
+		indices: [1],
+		customText: undefined,
+		note: undefined,
+		optionNotes: undefined,
+	});
 });
 
 test("ask tool includes custom answer fallback for preview questions", async () => {
