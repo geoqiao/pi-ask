@@ -150,6 +150,48 @@ test("ask tool uses portable dialogs instead of custom UI in RPC mode", async ()
 	});
 });
 
+test("ask tool keeps the non-interactive fallback for RPC without UI", async () => {
+	const { tool } = registerMockTool();
+
+	const result = await tool.execute(
+		"call-1",
+		sampleParams(),
+		undefined,
+		noop,
+		makeCtx(false, "rpc")
+	);
+
+	assert.equal(result.details.cancelled, true);
+	assert.deepEqual(result.details.answers, {});
+	assert.match(result.content[0].text, NON_INTERACTIVE_MESSAGE_RE);
+});
+
+test("ask tool forwards an aborted signal to the RPC flow", async () => {
+	const { tool } = registerMockTool();
+	const controller = new AbortController();
+	controller.abort();
+	let selectCalls = 0;
+
+	const result = await tool.execute(
+		"call-1",
+		sampleParams(),
+		controller.signal,
+		noop,
+		{
+			[HAS_UI]: true,
+			mode: "rpc",
+			ui: {
+				select() {
+					selectCalls += 1;
+				},
+			},
+		}
+	);
+
+	assert.equal(selectCalls, 0);
+	assert.equal(result.details.cancelled, true);
+});
+
 test("ask tool includes custom answer fallback for preview questions", async () => {
 	const { tool } = registerMockTool();
 

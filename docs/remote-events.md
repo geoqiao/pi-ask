@@ -18,7 +18,7 @@ Remote submit:
 
 ## Started
 
-Emitted after a validated ask UI flow opens.
+Emitted after a validated TUI ask flow opens. The RPC portable-dialog fallback does not start the remote event bridge or emit lifecycle events.
 
 ```ts
 type PiAskStartedEvent = {
@@ -104,7 +104,7 @@ Correlate by `requestId` and `flowId`. Do not depend on strict ordering between 
 
 ## Completed
 
-Emitted when the flow resolves.
+Emitted when the TUI flow resolves. RPC portable-dialog completion is returned through the normal tool result instead.
 
 ```ts
 type PiAskCompletedEvent = {

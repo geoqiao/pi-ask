@@ -160,7 +160,7 @@ This document defines the stable external behavior. It does not explain internal
 
 ## Output rules
 
-- `cancelled: true` means the user dismissed the flow, UI was unavailable, or the payload was invalid before UI opened
+- `cancelled: true` means the user dismissed a flow-level selection, chose Cancel, aborted the flow, UI was unavailable, or the payload was invalid before UI opened
 - invalid payloads return `error.kind === "invalid_input"` with structured `issues` and a transcript-friendly `Invalid ask_user payload:` message
 - `mode: "submit"` is normal completion; `mode: "elaborate"` means the user asked the agent to continue with follow-up clarification based on notes
 - unanswered questions are omitted from `answers`
@@ -175,7 +175,7 @@ This document defines the stable external behavior. It does not explain internal
 - `customText` stores the free-form answer
 - on single-select questions, saving free-form text clears selected options for that question
 - on multi-select questions, `values` and `labels` include both selected options and `customText` when both are present
-- on multi-select questions, selected options keep their original order and `customText` is appended last
+- on multi-select questions, selected options keep the user's selection order and `customText` is appended last
 - submitting free-form text on a multi-select question stays on the same question tab and marks the custom row selected
 - on multi-select questions, toggling an empty custom row opens the free-form editor, while toggling a custom row with saved free-form text selects or deselects it without opening the editor or clearing the text
 - saving or clearing free-form text on a multi-select question does not clear other selected options
@@ -263,10 +263,12 @@ The rich ask flow uses `ctx.ui.custom()` only in TUI mode. RPC mode never calls 
 - short and multiline custom answers use `input` and `editor`
 - every question exposes Skip explicitly; required remains advisory and its Skip label says so
 - after each question, a portable action dialog can add/edit a short or multiline question note, or an editor note for a selected option
-- multi-select repeatedly calls `select`, showing `[ ]` / `[x]` option markers and a `Finish selection` action; selections are collected locally in original option order
+- multi-select repeatedly calls `select`, showing `[ ]` / `[x]` option markers and a `Finish selection` action; selections are collected locally in the user's selection order
 - descriptions and preview content are flattened into option strings instead of using a custom preview pane
 - multiple questions are sequential and every title includes `[current/total]` progress
-- dismissing a value dialog or choosing Cancel returns `cancelled: true`
+- dismissing a question or optional-notes action `select`, choosing Cancel, or aborting the tool returns `cancelled: true`
+- dismissing a nested custom-answer or note `input`/`editor` abandons that edit and returns to its parent action dialog without changing the answer
+- `select` and `input` observe the tool abort signal; Pi's portable `editor` API has no signal or timeout option, so an abort is observed only after an open editor resolves
 
 RPC does not provide the tabbed same-screen form, native checkbox cards, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. RPC completion uses `mode: "submit"`. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
 

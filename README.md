@@ -207,6 +207,8 @@ When Pi runs in RPC mode with portable extension UI support, `ask_user` keeps th
 - multi-select repeats `select` with `[ ]` / `[x]` markers until `Finish selection` is chosen
 - descriptions and preview content are flattened into readable option strings
 - multiple questions include `[current/total]` progress in each dialog title
+- dismissing a question or notes-menu `select` cancels the flow, while dismissing a nested answer/note editor returns to its parent dialog
+- tool abort signals close portable `select`/`input` dialogs; Pi's portable `editor` cannot be interrupted until it resolves
 
 RPC intentionally does not reproduce the tabbed same-screen form, native checkbox cards, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. The fallback completes in `submit` mode after the sequential questions. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
 

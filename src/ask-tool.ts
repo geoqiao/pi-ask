@@ -51,7 +51,7 @@ async function executeAskTool(
 	pi: Pick<ExtensionAPI, "appendEntry">,
 	toolCallId: string,
 	params: AskParams,
-	_signal: AbortSignal | undefined,
+	signal: AbortSignal | undefined,
 	_onUpdate: unknown,
 	ctx: ExtensionContext,
 	remoteAsk?: RemoteAskRuntime
@@ -70,7 +70,9 @@ async function executeAskTool(
 	});
 	if (ctx.mode !== "tui") {
 		if (ctx.mode === "rpc" && ctx.hasUI) {
-			return successfulResponse(await runRpcAskFlow(ctx, validation.state));
+			return successfulResponse(
+				await runRpcAskFlow(ctx, validation.state, { signal })
+			);
 		}
 		return nonInteractiveResponse(validation.state);
 	}
