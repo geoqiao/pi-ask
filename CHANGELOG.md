@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/geoqiao/pi-ask/compare/v1.2.1...v1.2.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* simplify RPC question flow ([68a0f29](https://github.com/geoqiao/pi-ask/commit/68a0f29cc88dae906fe4a105714eb71d45654776))
+
 ## [1.2.1](https://github.com/geoqiao/pi-ask/compare/v1.2.0...v1.2.1) (2026-08-16)
 
 

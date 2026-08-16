@@ -1,6 +1,6 @@
 {
   "name": "@geoqiao/pi-ask",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Pi package that adds an interactive ask_user clarification tool.",
   "license": "MIT",
   "type": "module",
