@@ -69,6 +69,9 @@ The codebase is split so the implementation reads through file boundaries and na
 - submit is never blocked by unanswered questions
 - TUI state and controller behavior stay isolated from the RPC portable-dialog controller
 - RPC answers are written through shared answer helpers and serialized through the shared result builder
+- each RPC question card contains only real options plus one `Type something…` fallback; submitting a choice advances without a second confirmation card
+- RPC dismissal skips the current question, while an actual tool abort cancels the flow
+- RPC multi questions accept one scalar option or free-form text containing multiple choices; they do not emulate checkbox state with repeated dialogs
 - single-select answers serialize as arrays
 - when `behaviour.presentSingleAsMulti` is enabled, future single-select questions are handled with multi-select state semantics while result metadata preserves the requested `type` and adds `presentedType`
 - active-flow question type changes are per-question runtime overrides handled in state/controller logic; they do not mutate the stored source payload or global config

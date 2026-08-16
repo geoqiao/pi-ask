@@ -10,8 +10,8 @@ interface SelectCall {
 	title: string;
 }
 
-interface ValueCall {
-	prefill?: string;
+interface InputCall {
+	placeholder?: string;
 	signal?: AbortSignal;
 	title: string;
 }
@@ -21,45 +21,43 @@ type SelectResponse =
 	| undefined
 	| ((call: SelectCall) => string | undefined);
 
-type ValueResponse =
+type InputResponse =
 	| string
 	| undefined
-	| ((call: ValueCall) => string | undefined);
+	| ((call: InputCall) => string | undefined);
+
+const TYPE_SOMETHING_LABEL = "Type something…";
+const REMOVED_RPC_ACTIONS = [
+	"Cancel ask",
+	"Continue",
+	"Finish selection",
+	"More actions…",
+	"Skip this question (optional)",
+	"Skip this question (required is advisory)",
+];
 
 class RpcDialogHarness {
-	readonly editorCalls: ValueCall[] = [];
-	readonly inputCalls: ValueCall[] = [];
+	readonly inputCalls: InputCall[] = [];
 	readonly selectCalls: SelectCall[] = [];
-	private readonly editorResponses: ValueResponse[];
-	private readonly inputResponses: ValueResponse[];
+	private readonly inputResponses: InputResponse[];
 	private readonly selectResponses: SelectResponse[];
 
 	constructor(
 		selectResponses: SelectResponse[],
-		inputResponses: ValueResponse[] = [],
-		editorResponses: ValueResponse[] = []
+		inputResponses: InputResponse[] = []
 	) {
 		this.selectResponses = selectResponses;
 		this.inputResponses = inputResponses;
-		this.editorResponses = editorResponses;
 	}
 
 	readonly ctx = {
 		ui: {
-			editor: (title: string, prefill?: string) => {
-				const call = { title, prefill };
-				this.editorCalls.push(call);
-				const response = this.shiftResponse(this.editorResponses, "editor");
-				return Promise.resolve(
-					typeof response === "function" ? response(call) : response
-				);
-			},
 			input: (
 				title: string,
 				placeholder?: string,
 				options?: { signal?: AbortSignal }
 			) => {
-				const call = { title, prefill: placeholder, signal: options?.signal };
+				const call = { title, placeholder, signal: options?.signal };
 				this.inputCalls.push(call);
 				const response = this.shiftResponse(this.inputResponses, "input");
 				return Promise.resolve(
@@ -76,6 +74,18 @@ class RpcDialogHarness {
 					options.length,
 					"portable select options must be unique"
 				);
+				assert.equal(
+					options.at(-1),
+					TYPE_SOMETHING_LABEL,
+					"every RPC question card must end with the sole custom action"
+				);
+				for (const removedAction of REMOVED_RPC_ACTIONS) {
+					assert.equal(
+						options.includes(removedAction),
+						false,
+						`${removedAction} must not appear on an RPC question card`
+					);
+				}
 				const call = { title, options, signal: dialogOptions?.signal };
 				this.selectCalls.push(call);
 				const response = this.shiftResponse(this.selectResponses, "select");
@@ -89,7 +99,6 @@ class RpcDialogHarness {
 	assertDrained(): void {
 		assert.equal(this.selectResponses.length, 0, "unused select responses");
 		assert.equal(this.inputResponses.length, 0, "unused input responses");
-		assert.equal(this.editorResponses.length, 0, "unused editor responses");
 	}
 
 	private shiftResponse<T>(responses: T[], method: string): T {
@@ -110,8 +119,44 @@ function params(questions: AskParams["questions"]): AskParams {
 	return { title: "RPC interview", questions };
 }
 
-test("RPC single choice flattens descriptions and preview text", async () => {
-	const harness = new RpcDialogHarness([pickOption("1. Compact"), "Continue"]);
+test("RPC single choice completes with one native select card", async () => {
+	const harness = new RpcDialogHarness([pickOption("2. Safe")]);
+	const state = createInitialState(
+		params([
+			{
+				id: "goal",
+				prompt: "Choose a goal",
+				options: [
+					{ value: "fast", label: "Fast" },
+					{ value: "safe", label: "Safe" },
+				],
+			},
+		])
+	);
+
+	const result = await runRpcAskFlow(harness.ctx, state);
+
+	assert.equal(result.cancelled, false);
+	assert.deepEqual(result.answers.goal, {
+		values: ["safe"],
+		labels: ["Safe"],
+		indices: [2],
+		customText: undefined,
+		note: undefined,
+		optionNotes: undefined,
+	});
+	assert.deepEqual(harness.selectCalls[0]?.options, [
+		"1. Fast",
+		"2. Safe",
+		TYPE_SOMETHING_LABEL,
+	]);
+	assert.equal(harness.selectCalls.length, 1);
+	assert.equal(harness.inputCalls.length, 0);
+	harness.assertDrained();
+});
+
+test("RPC preview flattens readable option details without extra cards", async () => {
+	const harness = new RpcDialogHarness([pickOption("1. Compact")]);
 	const state = createInitialState(
 		params([
 			{
@@ -134,28 +179,54 @@ test("RPC single choice flattens descriptions and preview text", async () => {
 	const result = await runRpcAskFlow(harness.ctx, state);
 
 	assert.equal(result.cancelled, false);
-	assert.deepEqual(result.answers.layout, {
-		values: ["compact"],
-		labels: ["Compact"],
-		indices: [1],
-		customText: undefined,
-		note: undefined,
-		optionNotes: undefined,
-	});
-	assert((harness.selectCalls[0]?.title ?? "").startsWith("[1/1]"));
-	assert(
-		harness.selectCalls[0]?.options.some(
-			(option) =>
-				option === "1. Compact — Dense controls — Preview: Line one Line two"
-		)
-	);
+	assert.deepEqual(result.answers.layout?.values, ["compact"]);
+	assert.deepEqual(harness.selectCalls[0]?.options, [
+		"1. Compact — Dense controls — Preview: Line one Line two",
+		TYPE_SOMETHING_LABEL,
+	]);
+	assert.equal(harness.selectCalls.length, 1);
 	harness.assertDrained();
 });
 
-test("RPC free-form input and a subsequent short note preserve normalization", async () => {
+test("RPC multiple questions advance directly after each submitted choice", async () => {
+	const harness = new RpcDialogHarness([
+		pickOption("1. Small"),
+		pickOption("2. Friendly"),
+	]);
+	const state = createInitialState(
+		params([
+			{
+				id: "scope",
+				label: "Scope",
+				prompt: "Pick scope",
+				options: [{ value: "small", label: "Small" }],
+			},
+			{
+				id: "tone",
+				label: "Tone",
+				prompt: "Pick tone",
+				options: [
+					{ value: "direct", label: "Direct" },
+					{ value: "friendly", label: "Friendly" },
+				],
+			},
+		])
+	);
+
+	const result = await runRpcAskFlow(harness.ctx, state);
+
+	assert.deepEqual(result.answers.scope?.values, ["small"]);
+	assert.deepEqual(result.answers.tone?.values, ["friendly"]);
+	assert.equal(harness.selectCalls.length, 2);
+	assert((harness.selectCalls[0]?.title ?? "").startsWith("[1/2]"));
+	assert((harness.selectCalls[1]?.title ?? "").startsWith("[2/2]"));
+	harness.assertDrained();
+});
+
+test("RPC Type something opens one input and preserves normalization", async () => {
 	const harness = new RpcDialogHarness(
-		[pickOption("short answer"), pickOption("short question note"), "Continue"],
-		["A custom answer", "Keep this concise"]
+		[TYPE_SOMETHING_LABEL],
+		["A custom answer"]
 	);
 	const state = createInitialState(
 		params([
@@ -174,46 +245,107 @@ test("RPC free-form input and a subsequent short note preserve normalization", a
 		labels: ["A custom answer"],
 		indices: [],
 		customText: "A custom answer",
-		note: "Keep this concise",
+		note: undefined,
 		optionNotes: undefined,
 	});
-	assert((harness.inputCalls[0]?.title ?? "").endsWith("Short answer"));
-	assert((harness.inputCalls[1]?.title ?? "").endsWith("Question note"));
+	assert.equal(harness.selectCalls.length, 1);
+	assert.equal(harness.inputCalls.length, 1);
+	assert((harness.inputCalls[0]?.title ?? "").endsWith(TYPE_SOMETHING_LABEL));
+	assert.equal(harness.inputCalls[0]?.placeholder, "Enter your answer");
 	harness.assertDrained();
 });
 
-test("RPC multiline answers and notes use editor dialogs", async () => {
-	const harness = new RpcDialogHarness(
-		[
-			pickOption("multiline answer"),
-			pickOption("multiline question note"),
-			"Continue",
-		],
-		[],
-		["First line\nSecond line", "Detailed\ncontext"]
-	);
+test("RPC multi questions accept one real option without a repeated-select loop", async () => {
+	const harness = new RpcDialogHarness([pickOption("2. Beta")]);
 	const state = createInitialState(
 		params([
 			{
-				id: "details",
-				prompt: "Add details",
-				options: [{ value: "default", label: "Use defaults" }],
+				id: "features",
+				prompt: "Which features?",
+				type: "multi",
+				options: [
+					{ value: "alpha", label: "Alpha" },
+					{ value: "beta", label: "Beta" },
+				],
 			},
 		])
 	);
 
 	const result = await runRpcAskFlow(harness.ctx, state);
 
-	assert.equal(result.answers.details?.customText, "First line\nSecond line");
-	assert.equal(result.answers.details?.note, "Detailed\ncontext");
-	assert.deepEqual(
-		harness.editorCalls.map((call) => call.prefill),
-		["", ""]
-	);
+	assert.deepEqual(result.answers.features?.values, ["beta"]);
+	assert.equal(result.questions[0]?.type, "multi");
+	assert.deepEqual(harness.selectCalls[0]?.options, [
+		"1. Alpha",
+		"2. Beta",
+		TYPE_SOMETHING_LABEL,
+	]);
+	assert.equal(harness.selectCalls.length, 1);
 	harness.assertDrained();
 });
 
-test("RPC dialog dismissal cancels the flow", async () => {
+test("RPC multi questions use Type something for multiple choices", async () => {
+	const harness = new RpcDialogHarness(
+		[TYPE_SOMETHING_LABEL],
+		["Alpha, Gamma"]
+	);
+	const state = createInitialState(
+		params([
+			{
+				id: "features",
+				prompt: "Which features?",
+				type: "multi",
+				options: [
+					{ value: "alpha", label: "Alpha" },
+					{ value: "beta", label: "Beta" },
+					{ value: "gamma", label: "Gamma" },
+				],
+			},
+		])
+	);
+
+	const result = await runRpcAskFlow(harness.ctx, state);
+
+	assert.deepEqual(result.answers.features, {
+		values: ["Alpha, Gamma"],
+		labels: ["Alpha, Gamma"],
+		indices: [],
+		customText: "Alpha, Gamma",
+		note: undefined,
+		optionNotes: undefined,
+	});
+	assert.equal(harness.inputCalls[0]?.placeholder, "Enter one or more answers");
+	harness.assertDrained();
+});
+
+test("RPC question dismissal skips the current question and continues", async () => {
+	const harness = new RpcDialogHarness([undefined, pickOption("1. Direct")]);
+	const state = createInitialState(
+		params([
+			{
+				id: "scope",
+				prompt: "Pick scope",
+				required: true,
+				options: [{ value: "small", label: "Small" }],
+			},
+			{
+				id: "tone",
+				prompt: "Pick tone",
+				options: [{ value: "direct", label: "Direct" }],
+			},
+		])
+	);
+
+	const result = await runRpcAskFlow(harness.ctx, state);
+
+	assert.equal(result.cancelled, false);
+	assert.equal(result.answers.scope, undefined);
+	assert.deepEqual(result.answers.tone?.values, ["direct"]);
+	assert.equal(harness.selectCalls.length, 2);
+	harness.assertDrained();
+});
+
+test("RPC dismissal on the final question completes with no answer", async () => {
 	const harness = new RpcDialogHarness([undefined]);
 	const state = createInitialState(
 		params([
@@ -227,14 +359,14 @@ test("RPC dialog dismissal cancels the flow", async () => {
 
 	const result = await runRpcAskFlow(harness.ctx, state);
 
-	assert.equal(result.cancelled, true);
+	assert.equal(result.cancelled, false);
 	assert.deepEqual(result.answers, {});
 	harness.assertDrained();
 });
 
-test("RPC custom input dismissal returns to the question without recording an answer", async () => {
+test("RPC custom input dismissal skips the current question", async () => {
 	const harness = new RpcDialogHarness(
-		[pickOption("short answer"), pickOption("1. Speed"), "Continue"],
+		[TYPE_SOMETHING_LABEL, pickOption("1. Direct")],
 		[undefined]
 	);
 	const state = createInitialState(
@@ -243,85 +375,10 @@ test("RPC custom input dismissal returns to the question without recording an an
 				id: "goal",
 				prompt: "Choose",
 				options: [{ value: "speed", label: "Speed" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.cancelled, false);
-	assert.deepEqual(result.answers.goal?.values, ["speed"]);
-	harness.assertDrained();
-});
-
-test("RPC note editor dismissal returns to the optional notes menu", async () => {
-	const harness = new RpcDialogHarness(
-		[pickOption("1. Speed"), pickOption("multiline question note"), "Continue"],
-		[],
-		[undefined]
-	);
-	const state = createInitialState(
-		params([
-			{
-				id: "goal",
-				prompt: "Choose",
-				options: [{ value: "speed", label: "Speed" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.cancelled, false);
-	assert.deepEqual(result.answers.goal?.values, ["speed"]);
-	assert.equal(result.answers.goal?.note, undefined);
-	harness.assertDrained();
-});
-
-test("RPC optional-notes select dismissal cancels while preserving the answer", async () => {
-	const harness = new RpcDialogHarness([pickOption("1. Speed"), undefined]);
-	const state = createInitialState(
-		params([
-			{
-				id: "goal",
-				prompt: "Choose",
-				options: [{ value: "speed", label: "Speed" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.cancelled, true);
-	assert.deepEqual(result.answers.goal?.values, ["speed"]);
-	harness.assertDrained();
-});
-
-test("RPC optional skip and multiple questions run sequentially with progress", async () => {
-	const harness = new RpcDialogHarness([
-		pickOption("Skip this question (optional)"),
-		"Continue",
-		(call) => {
-			assert(
-				call.options.includes("Skip this question (required is advisory)")
-			);
-			return call.options.find((option) => option.includes("1. Direct"));
-		},
-		"Continue",
-	]);
-	const state = createInitialState(
-		params([
-			{
-				id: "scope",
-				label: "Scope",
-				prompt: "Pick scope",
-				options: [{ value: "small", label: "Small" }],
 			},
 			{
 				id: "tone",
-				label: "Tone",
 				prompt: "Pick tone",
-				required: true,
 				options: [{ value: "direct", label: "Direct" }],
 			},
 		])
@@ -329,125 +386,38 @@ test("RPC optional skip and multiple questions run sequentially with progress", 
 
 	const result = await runRpcAskFlow(harness.ctx, state);
 
-	assert.equal(result.answers.scope, undefined);
+	assert.equal(result.cancelled, false);
+	assert.equal(result.answers.goal, undefined);
 	assert.deepEqual(result.answers.tone?.values, ["direct"]);
-	assert((harness.selectCalls[0]?.title ?? "").startsWith("[1/2]"));
-	assert((harness.selectCalls[2]?.title ?? "").startsWith("[2/2]"));
 	harness.assertDrained();
 });
 
-test("RPC multi-select loops with selected markers and explicit finish", async () => {
-	const harness = new RpcDialogHarness(
-		[
-			pickOption("[ ] 2. Beta"),
-			(call) => {
-				assert(call.options.includes("[x] 2. Beta — Second"));
-				return call.options.find((option) => option.includes("[ ] 1. Alpha"));
-			},
-			(call) => {
-				assert(call.options.includes("[x] 1. Alpha — First"));
-				assert(call.options.includes("[x] 2. Beta — Second"));
-				assert(call.options.includes("Finish selection"));
-				return "Finish selection";
-			},
-			pickOption("note for selected option: 1. Alpha"),
-			"Continue",
-		],
-		[],
-		["Prefer this first"]
-	);
+test("RPC empty custom input completes as an unanswered question", async () => {
+	const harness = new RpcDialogHarness([TYPE_SOMETHING_LABEL], ["   "]);
 	const state = createInitialState(
 		params([
 			{
-				id: "features",
-				prompt: "Which features?",
-				type: "multi",
-				options: [
-					{ value: "alpha", label: "Alpha", description: "First" },
-					{ value: "beta", label: "Beta", description: "Second" },
-				],
+				id: "goal",
+				prompt: "Choose",
+				options: [{ value: "speed", label: "Speed" }],
 			},
 		])
 	);
 
 	const result = await runRpcAskFlow(harness.ctx, state);
 
-	assert.deepEqual(result.answers.features, {
-		values: ["beta", "alpha"],
-		labels: ["Beta", "Alpha"],
-		indices: [2, 1],
-		customText: undefined,
-		note: undefined,
-		optionNotes: { alpha: "Prefer this first" },
-	});
+	assert.equal(result.cancelled, false);
+	assert.equal(result.answers.goal, undefined);
 	harness.assertDrained();
 });
 
-test("RPC yes/no uses cancellable select options and preserves metadata", async () => {
-	const harness = new RpcDialogHarness([pickOption("2. No"), "Continue"]);
+test("RPC keeps duplicate option labels selectable through numbered rows", async () => {
+	const harness = new RpcDialogHarness([pickOption("2. Deploy")]);
 	const state = createInitialState(
 		params([
 			{
-				id: "proceed",
-				prompt: "Proceed?",
-				options: [
-					{ value: "yes", label: "Yes", description: "Continue now" },
-					{ value: "no", label: "No", description: "Stop here" },
-				],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.deepEqual(result.answers.proceed?.values, ["no"]);
-	assert.deepEqual(result.answers.proceed?.labels, ["No"]);
-	assert.deepEqual(result.answers.proceed?.indices, [2]);
-	assert(harness.selectCalls[0]?.options.includes("1. Yes — Continue now"));
-	assert(harness.selectCalls[0]?.options.includes("2. No — Stop here"));
-	harness.assertDrained();
-});
-
-test("RPC yes/no can be cancelled without being recorded as No", async () => {
-	const harness = new RpcDialogHarness([pickOption("Cancel ask")]);
-	const state = createInitialState(
-		params([
-			{
-				id: "proceed",
-				prompt: "Proceed?",
-				options: [
-					{ value: "yes", label: "Yes" },
-					{ value: "no", label: "No" },
-				],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.cancelled, true);
-	assert.deepEqual(result.answers, {});
-	harness.assertDrained();
-});
-
-test("RPC option notes remain distinct when selected options share a label", async () => {
-	const harness = new RpcDialogHarness(
-		[
-			pickOption("[ ] 1. Deploy"),
-			pickOption("[ ] 2. Deploy"),
-			"Finish selection",
-			pickOption("note for selected option: 2. Deploy"),
-			"Continue",
-		],
-		[],
-		["Note for the second deployment"]
-	);
-	const state = createInitialState(
-		params([
-			{
-				id: "targets",
-				prompt: "Where should this deploy?",
-				type: "multi",
+				id: "target",
+				prompt: "Choose target",
 				options: [
 					{ value: "primary", label: "Deploy" },
 					{ value: "secondary", label: "Deploy" },
@@ -458,193 +428,20 @@ test("RPC option notes remain distinct when selected options share a label", asy
 
 	const result = await runRpcAskFlow(harness.ctx, state);
 
-	assert.deepEqual(result.answers.targets?.optionNotes, {
-		secondary: "Note for the second deployment",
-	});
+	assert.deepEqual(result.answers.target?.values, ["secondary"]);
+	assert.deepEqual(result.answers.target?.indices, [2]);
 	harness.assertDrained();
 });
 
-test("RPC option-note editor dismissal returns to the notes menu", async () => {
-	const harness = new RpcDialogHarness(
-		[
-			pickOption("[ ] 1. Alpha"),
-			"Finish selection",
-			pickOption("note for selected option: 1. Alpha"),
-			"Continue",
-		],
-		[],
-		[undefined]
-	);
-	const state = createInitialState(
-		params([
-			{
-				id: "features",
-				prompt: "Which features?",
-				type: "multi",
-				options: [{ value: "alpha", label: "Alpha" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.cancelled, false);
-	assert.equal(result.answers.features?.optionNotes, undefined);
-	harness.assertDrained();
-});
-
-test("RPC skip can still produce a note-only normalized answer", async () => {
-	const harness = new RpcDialogHarness(
-		[
-			pickOption("Skip this question (optional)"),
-			pickOption("short question note"),
-			"Continue",
-		],
-		["Need more context before choosing"]
-	);
-	const state = createInitialState(
-		params([
-			{
-				id: "scope",
-				prompt: "Pick scope",
-				options: [{ value: "small", label: "Small" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.deepEqual(result.answers.scope, {
-		values: [],
-		labels: [],
-		indices: [],
-		customText: undefined,
-		note: "Need more context before choosing",
-		optionNotes: undefined,
-	});
-	harness.assertDrained();
-});
-
-test("RPC multi-select can deselect an option before finishing", async () => {
-	const harness = new RpcDialogHarness([
-		pickOption("[ ] 1. Alpha"),
-		pickOption("[x] 1. Alpha"),
-		"Finish selection",
-		"Continue",
-	]);
-	const state = createInitialState(
-		params([
-			{
-				id: "features",
-				prompt: "Which features?",
-				type: "multi",
-				options: [{ value: "alpha", label: "Alpha" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.answers.features, undefined);
-	harness.assertDrained();
-});
-
-test("RPC multi-select Skip clears selections made in the current loop", async () => {
-	const harness = new RpcDialogHarness([
-		pickOption("[ ] 1. Alpha"),
-		pickOption("Skip this question (optional)"),
-		"Continue",
-	]);
-	const state = createInitialState(
-		params([
-			{
-				id: "features",
-				prompt: "Which features?",
-				type: "multi",
-				options: [{ value: "alpha", label: "Alpha" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.answers.features, undefined);
-	harness.assertDrained();
-});
-
-test("RPC empty custom input clears a saved multi-select custom answer", async () => {
-	const harness = new RpcDialogHarness(
-		[
-			pickOption("short answer"),
-			pickOption("short answer"),
-			"Finish selection",
-			"Continue",
-		],
-		["Custom value", ""]
-	);
-	const state = createInitialState(
-		params([
-			{
-				id: "features",
-				prompt: "Which features?",
-				type: "multi",
-				options: [{ value: "alpha", label: "Alpha" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.answers.features, undefined);
-	harness.assertDrained();
-});
-
-test("RPC preserves completed answers when a later question is cancelled", async () => {
-	const harness = new RpcDialogHarness([
-		pickOption("1. Small"),
-		"Continue",
-		undefined,
-	]);
-	const state = createInitialState(
-		params([
-			{
-				id: "scope",
-				prompt: "Pick scope",
-				options: [{ value: "small", label: "Small" }],
-			},
-			{
-				id: "tone",
-				prompt: "Pick tone",
-				options: [{ value: "direct", label: "Direct" }],
-			},
-		])
-	);
-
-	const result = await runRpcAskFlow(harness.ctx, state);
-
-	assert.equal(result.cancelled, true);
-	assert.deepEqual(result.answers.scope?.values, ["small"]);
-	assert.equal(result.answers.tone, undefined);
-	harness.assertDrained();
-});
-
-test("RPC propagates AbortSignal to value dialogs and treats abort as cancellation", async () => {
+test("RPC propagates AbortSignal to select and treats abort as cancellation", async () => {
 	const controller = new AbortController();
-	const harness = new RpcDialogHarness(
-		[
-			(call) => {
-				assert.equal(call.signal, controller.signal);
-				return call.options.find((option) => option.includes("short answer"));
-			},
-		],
-		[
-			(call) => {
-				assert.equal(call.signal, controller.signal);
-				controller.abort();
-				return;
-			},
-		]
-	);
+	const harness = new RpcDialogHarness([
+		(call) => {
+			assert.equal(call.signal, controller.signal);
+			controller.abort();
+			return;
+		},
+	]);
 	const state = createInitialState(
 		params([
 			{
@@ -664,15 +461,20 @@ test("RPC propagates AbortSignal to value dialogs and treats abort as cancellati
 	harness.assertDrained();
 });
 
-test("RPC observes an abort after the non-interruptible editor resolves", async () => {
+test("RPC propagates AbortSignal to input and treats abort as cancellation", async () => {
 	const controller = new AbortController();
 	const harness = new RpcDialogHarness(
-		[pickOption("multiline answer")],
-		[],
 		[
-			() => {
+			(call) => {
+				assert.equal(call.signal, controller.signal);
+				return TYPE_SOMETHING_LABEL;
+			},
+		],
+		[
+			(call) => {
+				assert.equal(call.signal, controller.signal);
 				controller.abort();
-				return "Text entered before abort";
+				return;
 			},
 		]
 	);
@@ -737,12 +539,8 @@ test("RPC treats an unknown select response as cancellation", async () => {
 	harness.assertDrained();
 });
 
-test("RPC presentation overrides keep normalized requested and presented types", async () => {
-	const harness = new RpcDialogHarness([
-		pickOption("[ ] 1. Stable"),
-		"Finish selection",
-		"Continue",
-	]);
+test("RPC presentation overrides preserve requested and presented metadata", async () => {
+	const harness = new RpcDialogHarness([pickOption("1. Stable")]);
 	const state = createInitialState(
 		params([
 			{
@@ -767,5 +565,6 @@ test("RPC presentation overrides keep normalized requested and presented types",
 		},
 	]);
 	assert.deepEqual(result.answers.api?.values, ["stable"]);
+	assert.equal(harness.selectCalls.length, 1);
 	harness.assertDrained();
 });

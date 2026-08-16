@@ -124,12 +124,9 @@ test("ask tool uses portable dialogs instead of custom UI in RPC mode", async ()
 		ui: {
 			select(_title: string, options: string[]) {
 				selectCalls += 1;
-				if (selectCalls === 1) {
-					return Promise.resolve(
-						options.find((option) => option.includes("1. Speed"))
-					);
-				}
-				return Promise.resolve("Continue");
+				return Promise.resolve(
+					options.find((option) => option.includes("1. Speed"))
+				);
 			},
 			custom() {
 				customOpened = true;
@@ -138,7 +135,7 @@ test("ask tool uses portable dialogs instead of custom UI in RPC mode", async ()
 	});
 
 	assert.equal(customOpened, false);
-	assert.equal(selectCalls, 2);
+	assert.equal(selectCalls, 1);
 	assert.equal(result.details.cancelled, false);
 	assert.deepEqual(result.details.answers.goal, {
 		values: ["speed"],

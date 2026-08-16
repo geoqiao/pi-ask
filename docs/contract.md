@@ -259,18 +259,17 @@ Dirty dismiss:
 
 The rich ask flow uses `ctx.ui.custom()` only in TUI mode. RPC mode never calls `custom()`; when portable extension dialogs are available it asks questions sequentially and serializes answers through the same state/result helpers:
 
-- single choices, including Yes/No pairs, use `select` so dismissal remains distinct from choosing `No`
-- short and multiline custom answers use `input` and `editor`
-- every question exposes Skip explicitly; required remains advisory and its Skip label says so
-- after each question, a portable action dialog can add/edit a short or multiline question note, or an editor note for a selected option
-- multi-select repeatedly calls `select`, showing `[ ]` / `[x]` option markers and a `Finish selection` action; selections are collected locally in the user's selection order
+- every question uses one `select` card containing the real options followed by `Type something…`
+- selecting and submitting a real option advances directly; no confirmation, notes, review, or continuation card follows it
+- `Type something…` opens one `input` dialog and serializes the entered text through the existing `customText`, `values`, `labels`, and `indices` result fields
+- RPC does not emulate native multi-select: choosing one real option records that option, while `Type something…` lets the user enter multiple choices as free-form text
 - descriptions and preview content are flattened into option strings instead of using a custom preview pane
 - multiple questions are sequential and every title includes `[current/total]` progress
-- dismissing a question or optional-notes action `select`, choosing Cancel, or aborting the tool returns `cancelled: true`
-- dismissing a nested custom-answer or note `input`/`editor` abandons that edit and returns to its parent action dialog without changing the answer
-- `select` and `input` observe the tool abort signal; Pi's portable `editor` API has no signal or timeout option, so an abort is observed only after an open editor resolves
+- dismissing a question card or its custom input skips that question; a dismissed required question is also left unanswered because required remains advisory
+- RPC does not add Skip or Cancel rows because the portable client's native Dismiss control already provides the skip behavior
+- `select` and `input` observe the tool abort signal; an actual tool abort returns `cancelled: true`
 
-RPC does not provide the tabbed same-screen form, native checkbox cards, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. RPC completion uses `mode: "submit"`. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
+RPC does not provide the tabbed same-screen form, native checkbox cards, repeated multi-select cards, notes, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. RPC completion uses `mode: "submit"`. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
 
 In print, JSON, other non-TUI modes, or RPC without portable UI availability, the tool returns a `Needs user input: ask_user requires interactive TUI mode.` message in `content` and a cancelled result in `details` instead of opening UI.
 

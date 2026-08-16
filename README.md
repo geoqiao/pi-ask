@@ -201,16 +201,15 @@ Agents can auto-discover and call `ask_user` when they need clarification instea
 
 When Pi runs in RPC mode with portable extension UI support, `ask_user` keeps the same normalized result contract but uses sequential dialogs:
 
-- single choices, including Yes/No pairs, use cancellable `select` dialogs
-- short custom answers use `input`; multiline answers use `editor`
-- each question offers explicit Skip and Cancel actions, followed by optional question/selected-option note actions
-- multi-select repeats `select` with `[ ]` / `[x]` markers until `Finish selection` is chosen
+- each question card contains only its real options plus `Type something…`
+- selecting a real option and submitting advances directly to the next question or completes the flow
+- `Type something…` opens one `input` dialog; on multi questions it is the fallback for entering multiple choices
+- dismissing a question or its input skips that question instead of cancelling the flow
 - descriptions and preview content are flattened into readable option strings
 - multiple questions include `[current/total]` progress in each dialog title
-- dismissing a question or notes-menu `select` cancels the flow, while dismissing a nested answer/note editor returns to its parent dialog
-- tool abort signals close portable `select`/`input` dialogs; Pi's portable `editor` cannot be interrupted until it resolves
+- tool abort signals close portable `select`/`input` dialogs and return `cancelled: true`
 
-RPC intentionally does not reproduce the tabbed same-screen form, native checkbox cards, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. The fallback completes in `submit` mode after the sequential questions. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
+RPC intentionally does not reproduce the tabbed same-screen form, native checkbox cards, repeated multi-select cards, notes, Skip/Cancel option rows, custom preview pane, question-type hotkeys, settings overlay, or final Submit/Elaborate review tab. The fallback completes in `submit` mode after the sequential questions. `/answer`, `/answer:again`, `/ask:replay`, and `/ask-settings` remain TUI-only.
 
 ### Answer and replay commands
 
