@@ -3,6 +3,7 @@ name: CI
 # Validation pipeline for the independently maintained package.
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
