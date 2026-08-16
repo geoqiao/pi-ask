@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/geoqiao/pi-ask/compare/v1.2.0...v1.2.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* harden RPC fallback interactions ([4cceb3b](https://github.com/geoqiao/pi-ask/commit/4cceb3b2ab8d19b46f4688a53f8b7ae52e2b06ae))
+
 # [1.2.0](https://github.com/geoqiao/pi-ask/compare/v1.1.0...v1.2.0) (2026-08-16)
 
 
