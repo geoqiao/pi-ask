@@ -1,5 +1,7 @@
 name: Release
 
+# Trusted-publishing pipeline for @geoqiao/pi-ask.
+
 on:
   workflow_run:
     workflows:

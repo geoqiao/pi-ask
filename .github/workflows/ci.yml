@@ -1,5 +1,7 @@
 name: CI
 
+# Validation pipeline for the independently maintained package.
+
 on:
   pull_request:
   push:
