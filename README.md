@@ -2,6 +2,11 @@
 
 # @geoqiao/pi-ask
 
+> [!IMPORTANT]
+> This repository is archived. Active development has moved to
+> [`geoqiao/pi-tools`](https://github.com/geoqiao/pi-tools/tree/main/packages/pi-ask).
+> Install the package with `pi install npm:@geoqiao/pi-ask`.
+
 [![npm downloads](https://badgen.net/npm/dm/@geoqiao/pi-ask)](https://www.npmjs.com/package/@geoqiao/pi-ask)
 [![CI](https://github.com/geoqiao/pi-ask/actions/workflows/ci.yml/badge.svg)](https://github.com/geoqiao/pi-ask/actions/workflows/ci.yml)
 [![last commit](https://badgen.net/github/last-commit/geoqiao/pi-ask)](https://github.com/geoqiao/pi-ask/commits/main)
